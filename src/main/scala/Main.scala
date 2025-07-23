@@ -3,5 +3,5 @@ object Main extends App {
   // create a "PPJoinHandler"/"AllPairsHandler" instance
   val ssjAlgorithmHandler = new PPJoinHandler(threshold = 0.7)
   // address of the dataset
-  executer.executeSelfJoin("src/main/dataset/bms-pos-5p-sample.txt", ssjAlgorithmHandler)
+  executer.executeSelfJoin("data/bms-pos-5p-sample.txt", ssjAlgorithmHandler)
 }
