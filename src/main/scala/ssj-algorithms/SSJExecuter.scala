@@ -61,8 +61,6 @@ class SSJExecuter {
     val fragmentedS: ArrayBuffer[Array[Array[Int]]] =
       farHandler.fragmentCollection(S, sChunks)
 
-    println(fragmentedR.intersect(fragmentedS).foreach(println))
-
     // Join all the pairs
     var sumSimilars = 0
     for (Rn <- fragmentedR; Sn <- fragmentedS) {
@@ -72,9 +70,7 @@ class SSJExecuter {
 
       algorithmHandler match
         case handler: AllPairsHandler =>
-          val length = handler.findSimilarPairs(sortedRn, sortedSn).length
-          println(s"simils: $length")
-          sumSimilars += length
+          sumSimilars +=  handler.findSimilarPairs(sortedRn, sortedSn).length
         case handler: PPJoinHandler =>
           sumSimilars += handler.findSimilarPairs(sortedRn, sortedSn).length
     }

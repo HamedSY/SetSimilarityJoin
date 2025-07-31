@@ -3,8 +3,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 
-val requiredOverlap = 2
-
 trait SSJAlgorithmHandler(threshold: Double) {
   val jaccardHandler = new JaccardHandler(threshold)
   val prefixHandler = new PrefixHandler
@@ -15,7 +13,7 @@ trait SSJAlgorithmHandler(threshold: Double) {
   ): ArrayBuffer[(Array[Int], Array[Int])] = {
     val similarPairs = ArrayBuffer.empty[(Array[Int], Array[Int])]
     val index = new HashMap[Int, ArrayBuffer[Int]]()
-    val seen = new HashSet[(Int, Int)]() // To avoid duplicate comparisons
+    val seen = new HashSet[(Int, Int)]()
 
     // Build inverted index from S
     val sPrefixes = new Array[Array[Int]](sortedS.length)
@@ -28,12 +26,6 @@ trait SSJAlgorithmHandler(threshold: Double) {
         index.getOrElseUpdate(token, ArrayBuffer.empty) += j
       }
     }
-
-    println("Full HashMap content:")
-    index.foreach { case (key, buffer) =>
-      println(s"$key -> ${buffer.mkString("[", ", ", "]")}")
-    }
-    println()
 
     // Probe using inverted index
     for (i <- sortedR.indices) {
@@ -56,11 +48,8 @@ trait SSJAlgorithmHandler(threshold: Double) {
       for (j <- candidates) {
         val s = sortedS(j)
         val sPrefix = sPrefixes(j)
-        // val requiredOverlap =
-        //   jaccardHandler.calculateOverlap(r.length + s.length)
-        // print(s"r: ${r.foreach(a => print(s"$a "))}\n")
-        // print(s"s: ${s.foreach(a => print(s"$a "))}\n")
-
+        val requiredOverlap =
+          jaccardHandler.calculateOverlap(r.length + s.length)
         if (
           !isLengthFiltered(rPrefix, sPrefix)
           && !isPrefixFiltered(rPrefix, sPrefix)
@@ -75,9 +64,7 @@ trait SSJAlgorithmHandler(threshold: Double) {
           if (verify(r, s, requiredOverlap)) {
             similarPairs.append((r, s))
           }
-        } else {
-            println("PRUNED!!!\n")
-          }
+        }
       }
     }
 
@@ -117,7 +104,8 @@ trait SSJAlgorithmHandler(threshold: Double) {
           if (j > i && !seenCandidates.contains(j)) {
             seenCandidates += j
             val r2 = sortedR(j)
-            // val requiredOverlap = jaccardHandler.calculateOverlap(r1.length + r2.length)
+            val requiredOverlap =
+              jaccardHandler.calculateOverlap(r1.length + r2.length)
             val r2PrefixLen =
               r2.length - math.ceil(r2.length * threshold).toInt + 1
             val r2Prefix = r2.take(r2PrefixLen)
@@ -145,15 +133,10 @@ trait SSJAlgorithmHandler(threshold: Double) {
   }
 
   def isPrefixFiltered(rPrefix: Array[Int], sPrefix: Array[Int]): Boolean = {
-    var i = 0
-    var j = 0
-    while (i < rPrefix.length && j < sPrefix.length) {
-      if (rPrefix(i) == sPrefix(j)) return false
-      else if (rPrefix(i) < sPrefix(j)) i += 1
-      else j += 1
-    }
-    true
+    val rSet = rPrefix.toSet
+    !sPrefix.exists(token => rSet.contains(token))
   }
+
 
   def isLengthFiltered(rPrefix: Array[Int], sPrefix: Array[Int]): Boolean = {
     sPrefix.isEmpty || rPrefix.isEmpty
@@ -170,12 +153,12 @@ trait SSJAlgorithmHandler(threshold: Double) {
   def verify(r: Array[Int], s: Array[Int], requiredOverlap: Int): Boolean = {
     val setR = r.toSet
     var overlap = 0
-    for (token <- s) {
+    s.exists { token =>
       if (setR.contains(token)) {
         overlap += 1
-        if (overlap >= requiredOverlap) return true
-      }
+        overlap >= requiredOverlap
+      } else false
     }
-    false
   }
+
 }
