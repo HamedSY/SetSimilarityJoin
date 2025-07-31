@@ -16,6 +16,6 @@ object Main extends App {
 
   // val results = executer.executeRSJoin("data/r.txt", "data/s.txt", algorithmHandler)
   // printResults(results)
-  val results = executer.executeRSJoinWithFAR("data/r.txt", "data/s.txt", algorithmHandler, 2, 2)
+  val results = executer.executeRSJoinWithFAR("data/r.txt", "data/s.txt", algorithmHandler, 4, 2)
   println(s"Number of similar pairs: ${results}")
 }

@@ -18,8 +18,8 @@ class FARHandler {
         System.arraycopy(collection, index, chunk, 0, chunkSize)
         fragmentedCollection += chunk
         index += chunkSize
-        print(s"Chunk $i : ${chunk.foreach(a => print(s"${a(0)} "))}")
-        println()
+        // print(s"Chunk $i : ${chunk.foreach(a => print(s"${a(0)} "))}")
+        // println()
     }
 
     fragmentedCollection
