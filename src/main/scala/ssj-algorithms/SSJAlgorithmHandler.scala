@@ -137,7 +137,15 @@ trait SSJAlgorithmHandler(threshold: Double) {
     while (i < r.length && j < s.length) {
       if (r(i) == s(j)) {
         overlap += 1
-        if (overlap >= requiredOverlap) return true
+        if (overlap >= requiredOverlap) {
+          println(s"PASSED! overlap: $overlap\tRequired: $requiredOverlap")
+          println("r and s:")
+          r.foreach(a => print(s"$a "))
+          println()
+          s.foreach(a => print(s"$a "))
+          println()
+          return true
+        }
         i += 1
         j += 1
       } else if (r(i) < s(j)) {
@@ -146,6 +154,7 @@ trait SSJAlgorithmHandler(threshold: Double) {
         j += 1
       }
     }
+    println(s"failed! overlap: $overlap\tRequired: $requiredOverlap")
     false
   }
 }
