@@ -12,59 +12,56 @@ trait SSJAlgorithmHandler(threshold: Double) {
       sortedS: Array[Array[Int]]
   ): ArrayBuffer[(Array[Int], Array[Int])] = {
     val similarPairs = ArrayBuffer.empty[(Array[Int], Array[Int])]
-    val index = new HashMap[Int, ArrayBuffer[Int]]()
+    val index = HashMap[Int, List[(Int, Array[Int], Int)]]()
     val seen = new HashSet[(Int, Int)]()
 
     // Build inverted index from S
-    val sPrefixes = new Array[Array[Int]](sortedS.length)
-    for (j <- sortedS.indices) {
-      val s = sortedS(j)
-      val prefixLen = s.length - math.ceil(s.length * threshold).toInt + 1
-      val sPrefix = s.take(prefixLen)
-      sPrefixes(j) = sPrefix
-      for (token <- sPrefix) {
-        index.getOrElseUpdate(token, ArrayBuffer.empty) += j
+    for ((s, sid) <- sortedS.zipWithIndex) {
+      val prefixLen = s.length - Math.ceil(s.length * threshold).toInt + 1
+      for (pos <- 0 until Math.min(prefixLen, s.length)) {
+        val token = s(pos)
+        val entry = (sid, s, pos)
+        index(token) = entry :: index.getOrElse(token, Nil)
       }
     }
 
     // Probe using inverted index
-    for (i <- sortedR.indices) {
-      val r = sortedR(i)
-      val rPrefixLen = r.length - math.ceil(r.length * threshold).toInt + 1
-      val rPrefix = r.take(rPrefixLen)
-      val rSize = r.length
+    for ((r, rid) <- sortedR.zipWithIndex) {
+      val prefixLen = r.length - Math.ceil(r.length * threshold).toInt + 1
+      val candidates = HashMap[Int, Int]()
 
-      val candidates = new HashSet[Int]()
-
-      for (token <- rPrefix) {
-        for (j <- index.getOrElse(token, ArrayBuffer.empty)) {
-          if (!seen.contains((i, j))) {
-            seen.add((i, j))
-            candidates += j
+      for (posR <- 0 until Math.min(prefixLen, r.length)) {
+        val token = r(posR)
+        for ((sid, s, posS) <- index.getOrElse(token, Nil)) {
+          if (!seen.contains((rid, sid))) {
+            // Length filter
+            val requiredOverlap =
+              jaccardHandler.calculateOverlap(r.length + s.length)
+            if (Math.min(r.length, s.length) >= requiredOverlap) {
+              // Position filter
+              val maxRemaining = Math.min(r.length - posR, s.length - posS)
+              val currentOverlap = candidates.getOrElse(sid, 0)
+              if (currentOverlap + maxRemaining >= requiredOverlap) {
+                candidates(sid) = currentOverlap + 1
+                seen += ((rid, sid))
+              }
+            }
           }
         }
       }
 
-      for (j <- candidates) {
-        val s = sortedS(j)
-        val sPrefix = sPrefixes(j)
+      // Verify only promising candidates
+      for ((sid, overlap) <- candidates) {
+        val s = sortedS(sid)
         val requiredOverlap =
           jaccardHandler.calculateOverlap(r.length + s.length)
-        if (
-          !isLengthFiltered(rPrefix, sPrefix)
-          && !isPrefixFiltered(rPrefix, sPrefix)
-          && !isPositionFiltered(
-            rPrefix,
-            sPrefix,
-            r.length,
-            s.length,
-            requiredOverlap
-          )
-        ) {
-          if (verify(r, s, requiredOverlap)) {
-            similarPairs.append((r, s))
-          }
+        val setR = r.toSet
+        val setS = s.toSet
+        val inter = (setR intersect setS).size
+        if (inter >= requiredOverlap) {
+          similarPairs.append((r, s))
         }
+
       }
     }
 
@@ -136,7 +133,6 @@ trait SSJAlgorithmHandler(threshold: Double) {
     val rSet = rPrefix.toSet
     !sPrefix.exists(token => rSet.contains(token))
   }
-
 
   def isLengthFiltered(rPrefix: Array[Int], sPrefix: Array[Int]): Boolean = {
     sPrefix.isEmpty || rPrefix.isEmpty
