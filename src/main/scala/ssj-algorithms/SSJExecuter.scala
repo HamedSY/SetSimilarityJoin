@@ -14,11 +14,40 @@ class SSJExecuter {
     val frequencyHandler = new FrequencyHandler()
     val sortedR: Array[Array[Int]] = frequencyHandler.createSortedLists(R)
 
-    algorithmHandler match
-      case handler: AllPairsHandler =>
-        handler.findSimilarPairs(sortedR)
-      case handler: PPJoinHandler =>
-        handler.findSimilarPairs(sortedR)
+    algorithmHandler.findSimilarPairs(sortedR)
+  }
+
+  def executeSelfJoinWithFAR(
+      filename: String,
+      algorithmHandler: SSJAlgorithmHandler,
+      chunks: Int
+  ): Int = {
+    // Read the dataset
+    val datasetReader = new DatasetReader
+    val R: Array[Array[Int]] = datasetReader.readSetsFromFile(filename)
+
+    // Fragment the dataset
+    val farHandler = new FARHandler
+    val fragmentedR: ArrayBuffer[Array[Array[Int]]] =
+      farHandler.fragmentCollection(R, chunks)
+
+    // Join all the pairs
+    var sumSimilars = 0
+    for ((r1n, r1Index) <- fragmentedR.zipWithIndex; (r2n, r2Index) <- fragmentedR.zipWithIndex) {
+      // Sort the sets by frequency
+      val frequencyHandler = new FrequencyHandler()
+      if (r1Index >= r2Index) {
+        if (r1Index == r2Index) { // Self-Join
+          val sortedR: Array[Array[Int]] = frequencyHandler.createSortedLists(r1n)
+          sumSimilars += algorithmHandler.findSimilarPairs(sortedR).length
+        } else { // R-S Join
+          val (sortedR1n, sortedR2n) = frequencyHandler.createSortedLists(r1n, r2n)
+          sumSimilars += algorithmHandler.findSimilarPairs(sortedR1n, sortedR2n).length
+        }
+      }
+    }
+
+    sumSimilars
   }
 
   def executeRSJoin(
@@ -35,11 +64,7 @@ class SSJExecuter {
     val frequencyHandler = new FrequencyHandler()
     val (sortedR, sortedS) = frequencyHandler.createSortedLists(R, S)
 
-    algorithmHandler match
-      case handler: AllPairsHandler =>
-        handler.findSimilarPairs(sortedR, sortedS)
-      case handler: PPJoinHandler =>
-        handler.findSimilarPairs(sortedR, sortedS)
+    algorithmHandler.findSimilarPairs(sortedR, sortedS)
   }
 
   def executeRSJoinWithFAR(
@@ -68,11 +93,7 @@ class SSJExecuter {
       val frequencyHandler = new FrequencyHandler()
       val (sortedRn, sortedSn) = frequencyHandler.createSortedLists(Rn, Sn)
 
-      algorithmHandler match
-        case handler: AllPairsHandler =>
-          sumSimilars +=  handler.findSimilarPairs(sortedRn, sortedSn).length
-        case handler: PPJoinHandler =>
-          sumSimilars += handler.findSimilarPairs(sortedRn, sortedSn).length
+      sumSimilars += algorithmHandler.findSimilarPairs(sortedRn, sortedSn).length
     }
 
     sumSimilars

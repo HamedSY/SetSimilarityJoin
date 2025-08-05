@@ -72,89 +72,59 @@ trait SSJAlgorithmHandler(threshold: Double) {
       sortedR: Array[Array[Int]]
   ): ArrayBuffer[(Array[Int], Array[Int])] = {
     val similarPairs = ArrayBuffer.empty[(Array[Int], Array[Int])]
-    val index = new HashMap[Int, ArrayBuffer[Int]]()
-    val seen = Array.fill(sortedR.length)(false)
-    val candidates = ArrayBuffer.empty[Int]
+    val index = HashMap[Int, List[(Int, Array[Int], Int)]]()
+    val seen = new HashSet[(Int, Int)]()
 
-    // Build inverted index
-    for (i <- sortedR.indices) {
-      val record = sortedR(i)
-      val prefixLen =
-        record.length - math.ceil(record.length * threshold).toInt + 1
-      val prefix = record.take(prefixLen)
-      for (token <- prefix) {
-        index.getOrElseUpdate(token, ArrayBuffer.empty) += i
+    // Build inverted index from S
+    for ((r, rid) <- sortedR.zipWithIndex) {
+      val prefixLen = r.length - Math.ceil(r.length * threshold).toInt + 1
+      for (pos <- 0 until Math.min(prefixLen, r.length)) {
+        val token = r(pos)
+        val entry = (rid, r, pos)
+        index(token) = entry :: index.getOrElse(token, Nil)
       }
     }
 
     // Probe using inverted index
-    for (i <- sortedR.indices) {
-      val r1 = sortedR(i)
-      val r1PrefixLen = r1.length - math.ceil(r1.length * threshold).toInt + 1
-      val r1Prefix = r1.take(r1PrefixLen)
+    for ((r1, r1id) <- sortedR.zipWithIndex) {
+      val prefixLen = r1.length - Math.ceil(r1.length * threshold).toInt + 1
+      val candidates = HashMap[Int, Int]()
 
-      candidates.clear()
-      val seenCandidates = scala.collection.mutable.Set.empty[Int]
-
-      for (token <- r1Prefix) {
-        for (j <- index.getOrElse(token, ArrayBuffer.empty)) {
-          if (j > i && !seenCandidates.contains(j)) {
-            seenCandidates += j
-            val r2 = sortedR(j)
+      for (posR1 <- 0 until Math.min(prefixLen, r1.length)) {
+        val token = r1(posR1)
+        for ((r2id, r2, posR2) <- index.getOrElse(token, Nil)) {
+          if (r1id < r2id && !seen.contains((r1id, r2id))) {
+            // Length filter
             val requiredOverlap =
               jaccardHandler.calculateOverlap(r1.length + r2.length)
-            val r2PrefixLen =
-              r2.length - math.ceil(r2.length * threshold).toInt + 1
-            val r2Prefix = r2.take(r2PrefixLen)
-
-            if (
-              !isLengthFiltered(r1Prefix, r2Prefix) &&
-              !isPrefixFiltered(r1Prefix, r2Prefix) &&
-              !isPositionFiltered(
-                r1Prefix,
-                r2Prefix,
-                r1.length,
-                r2.length,
-                requiredOverlap
-              )
-            ) {
-              if (verify(r1, r2, requiredOverlap)) {
-                similarPairs.append((r1, r2))
+            if (Math.min(r1.length, r2.length) >= requiredOverlap) {
+              // Position filter
+              val maxRemaining = Math.min(r1.length - posR1, r2.length - posR2)
+              val currentOverlap = candidates.getOrElse(r2id, 0)
+              if (currentOverlap + maxRemaining >= requiredOverlap) {
+                candidates(r2id) = currentOverlap + 1
+                seen += ((r1id, r2id))
               }
             }
           }
         }
       }
+
+      // Verify only promising candidates
+      for ((r2id, overlap) <- candidates) {
+        val r2 = sortedR(r2id)
+        val requiredOverlap =
+          jaccardHandler.calculateOverlap(r1.length + r2.length)
+        val setR1 = r1.toSet
+        val setR2 = r2.toSet
+        val inter = (setR1 intersect setR2).size
+        if (inter >= requiredOverlap) {
+          similarPairs.append((r1, r2))
+        }
+      }
     }
+
     similarPairs
-  }
-
-  def isPrefixFiltered(rPrefix: Array[Int], sPrefix: Array[Int]): Boolean = {
-    val rSet = rPrefix.toSet
-    !sPrefix.exists(token => rSet.contains(token))
-  }
-
-  def isLengthFiltered(rPrefix: Array[Int], sPrefix: Array[Int]): Boolean = {
-    sPrefix.isEmpty || rPrefix.isEmpty
-  }
-
-  def isPositionFiltered(
-      rPrefix: Array[Int],
-      sPrefix: Array[Int],
-      rSize: Int,
-      sSize: Int,
-      requiredOverlap: Int
-  ): Boolean
-
-  def verify(r: Array[Int], s: Array[Int], requiredOverlap: Int): Boolean = {
-    val setR = r.toSet
-    var overlap = 0
-    s.exists { token =>
-      if (setR.contains(token)) {
-        overlap += 1
-        overlap >= requiredOverlap
-      } else false
-    }
   }
 
 }
